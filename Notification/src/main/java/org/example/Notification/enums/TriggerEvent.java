@@ -1,0 +1,14 @@
+package org.example.Notification.enums;
+
+public enum TriggerEvent {
+    ACCOUNT_CREATED,
+    ACCOUNT_VERIFIED,
+    ACCOUNT_BLOCKED,
+    ACCOUNT_CLOSED,
+    TRANSACTION_COMPLETED,
+    TRANSACTION_FAILED,
+    PAYMENT_RECEIVED,
+    PAYMENT_FAILED,
+    LOW_BALANCE,
+    SUSPICIOUS_ACTIVITY
+}

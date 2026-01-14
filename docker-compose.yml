@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres_banking
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1q2w3e
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - banking-network
+
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - banking-network
+
+  eurekaserver:
+    build: ./eurekaserver
+    container_name: eureka-server
+    ports:
+      - "8070:8070"
+    depends_on:
+      - zipkin
+    networks:
+      - banking-network
+
+  gatewayserver:
+    build: ./gatewayserver
+    container_name: gateway-server
+    ports:
+      - "8072:8072"
+    environment:
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      - eurekaserver
+      - zipkin
+    networks:
+      - banking-network
+
+  gatewayserver-test:
+    build: ./gatewayserver
+    container_name: gateway-server-test
+    ports:
+      - "8073:8072"
+    environment:
+      - SPRING_PROFILES_ACTIVE=test
+      - GOOGLE_CLIENT_ID=dummy
+      - GOOGLE_CLIENT_SECRET=dummy
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      - eurekaserver
+      - zipkin
+    networks:
+      - banking-network
+
+  accountmanagement:
+    build: ./AccountManagement
+    container_name: account-service
+    ports:
+      - "8090:8090"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=1q2w3e
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
+    depends_on:
+      - postgres
+      - eurekaserver
+      - zipkin
+    networks:
+      - banking-network
+
+  notification-1:
+    build: ./Notification
+    container_name: notification-service-1
+    ports:
+      - "8100:8100"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=1q2w3e
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
+      - EUREKA_INSTANCE_INSTANCE-ID=notification-1:8100
+      - SERVER_PORT=8100
+    depends_on:
+      - postgres
+      - eurekaserver
+      - zipkin
+    networks:
+      - banking-network
+
+  notification-2:
+    build: ./Notification
+    container_name: notification-service-2
+    ports:
+      - "8101:8100"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=1q2w3e
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
+      - EUREKA_INSTANCE_INSTANCE-ID=notification-2:8100
+      - SERVER_PORT=8100
+    depends_on:
+      - postgres
+      - eurekaserver
+      - zipkin
+    networks:
+      - banking-network
+
+  transactions:
+    build: ./Transactions
+    container_name: transaction-service
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=1q2w3e
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
+    depends_on:
+      - postgres
+      - eurekaserver
+      - zipkin
+    networks:
+      - banking-network
+
+volumes:
+  postgres_data:
+
+networks:
+  banking-network:
+    driver: bridge
