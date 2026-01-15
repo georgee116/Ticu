@@ -14,6 +14,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - banking-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   zipkin:
     image: openzipkin/zipkin:latest
@@ -39,8 +44,12 @@ services:
     ports:
       - "8072:8072"
     environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED=false
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
     depends_on:
       - eurekaserver
     networks:
@@ -50,63 +59,81 @@ services:
     build: ./gatewayserver
     container_name: gateway-server-test
     ports:
-      - "8073:8072"
+      - "8073:8073"  # ✅ Port 8073:8073 (nu 8073:8072)
     environment:
       - SPRING_PROFILES_ACTIVE=test
-      - GOOGLE_CLIENT_ID=dummy
-      - GOOGLE_CLIENT_SECRET=dummy
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+      - SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED=false
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
     depends_on:
       - eurekaserver
     networks:
       - banking-network
 
-  accountmanagement-1:
+  # ✅ Microserviciu principal cu 1 instanță (poate fi mai multe dacă vrei)
+  accountmanagement:
     build: ./AccountManagement
-    container_name: account-service-1
+    container_name: account-service
     ports:
       - "8090:8090"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=1q2w3e
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
     depends_on:
-      - postgres
-      - eurekaserver
+      postgres:
+        condition: service_healthy
+      eurekaserver:
+        condition: service_started
     networks:
       - banking-network
 
-  accountmanagement-2:
-    build: ./AccountManagement
-    container_name: account-service-2
-    ports:
-      - "8091:8090"
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=1q2w3e
-    depends_on:
-      - postgres
-      - eurekaserver
-    networks:
-      - banking-network
-
-  notification:
+  # ✅ NOTIFICATION - Instanța 1 (microserviciu principal cu 2 instanțe)
+  notification-1:
     build: ./Notification
-    container_name: notification-service
+    container_name: notification-service-1
     ports:
       - "8100:8100"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=1q2w3e
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
+      - EUREKA_INSTANCE_INSTANCE-ID=notification-1:8100
+      - SERVER_PORT=8100
     depends_on:
-      - postgres
-      - eurekaserver
+      postgres:
+        condition: service_healthy
+      eurekaserver:
+        condition: service_started
     networks:
       - banking-network
 
+  # ✅ NOTIFICATION - Instanța 2 (microserviciu principal cu 2 instanțe)
+  notification-2:
+    build: ./Notification
+    container_name: notification-service-2
+    ports:
+      - "8101:8100"  # ✅ Port extern diferit, intern același
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=1q2w3e
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
+      - EUREKA_INSTANCE_INSTANCE-ID=notification-2:8100
+      - SERVER_PORT=8100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eurekaserver:
+        condition: service_started
+    networks:
+      - banking-network
+
+  # ✅ Transactions - 1 instanță
   transactions:
-    build: ./transactions
+    build: ./Transactions
     container_name: transaction-service
     ports:
       - "8080:8080"
@@ -114,9 +141,12 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=1q2w3e
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
     depends_on:
-      - postgres
-      - eurekaserver
+      postgres:
+        condition: service_healthy
+      eurekaserver:
+        condition: service_started
     networks:
       - banking-network
 
@@ -126,5 +156,3 @@ volumes:
 networks:
   banking-network:
     driver: bridge
-
-
