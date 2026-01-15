@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:15
     container_name: postgres_banking
     environment:
       POSTGRES_DB: postgres
@@ -41,12 +41,8 @@ services:
     environment:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
-      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
-      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
     depends_on:
       - eurekaserver
-      - zipkin
     networks:
       - banking-network
 
@@ -59,75 +55,58 @@ services:
       - SPRING_PROFILES_ACTIVE=test
       - GOOGLE_CLIENT_ID=dummy
       - GOOGLE_CLIENT_SECRET=dummy
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
-      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
-      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
     depends_on:
       - eurekaserver
-      - zipkin
     networks:
       - banking-network
 
-  accountmanagement:
+  accountmanagement-1:
     build: ./AccountManagement
-    container_name: account-service
+    container_name: account-service-1
     ports:
       - "8090:8090"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=1q2w3e
-      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
     depends_on:
       - postgres
       - eurekaserver
-      - zipkin
     networks:
       - banking-network
 
-  notification-1:
+  accountmanagement-2:
+    build: ./AccountManagement
+    container_name: account-service-2
+    ports:
+      - "8091:8090"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=1q2w3e
+    depends_on:
+      - postgres
+      - eurekaserver
+    networks:
+      - banking-network
+
+  notification:
     build: ./Notification
-    container_name: notification-service-1
+    container_name: notification-service
     ports:
       - "8100:8100"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=1q2w3e
-      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
-      - EUREKA_INSTANCE_INSTANCE-ID=notification-1:8100
-      - SERVER_PORT=8100
     depends_on:
       - postgres
       - eurekaserver
-      - zipkin
-    networks:
-      - banking-network
-
-  notification-2:
-    build: ./Notification
-    container_name: notification-service-2
-    ports:
-      - "8101:8100"
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=1q2w3e
-      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
-      - EUREKA_INSTANCE_INSTANCE-ID=notification-2:8100
-      - SERVER_PORT=8100
-    depends_on:
-      - postgres
-      - eurekaserver
-      - zipkin
     networks:
       - banking-network
 
   transactions:
-    build: ./Transactions
+    build: ./transactions
     container_name: transaction-service
     ports:
       - "8080:8080"
@@ -135,12 +114,9 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/postgres
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=1q2w3e
-      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8070/eureka/
     depends_on:
       - postgres
       - eurekaserver
-      - zipkin
     networks:
       - banking-network
 
@@ -150,3 +126,5 @@ volumes:
 networks:
   banking-network:
     driver: bridge
+
+

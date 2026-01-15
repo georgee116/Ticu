@@ -2,16 +2,15 @@ package com.example.gatewayserver.auth;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
-import com.google.api.client.util.Value;
 import com.google.api.services.cloudresourcemanager.CloudResourceManager;
 import com.google.api.services.cloudresourcemanager.model.Binding;
 import com.google.api.services.cloudresourcemanager.model.GetIamPolicyRequest;
 import com.google.api.services.cloudresourcemanager.model.Policy;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
@@ -38,26 +37,28 @@ import java.util.stream.Collectors;
 public class AccountSecurityConfig {
     private final String idProject = "tw-lau";
 
+    @Value("${spring.profiles.active:default}")
+    private String activeProfile;
+
     @Bean
-    @Profile("test")
-    public SecurityWebFilterChain testSecurityFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http){
+        if ("test".equals(activeProfile)) {
+            http
+                    .authorizeExchange(exchange -> exchange
+                            .anyExchange().permitAll())
+                    .csrf(csrf -> csrf.disable());
+            return http.build();
+        }
         http
-                .authorizeExchange(exchange -> exchange
-                        .anyExchange().permitAll())
-                .csrf(csrf -> csrf.disable());
-        return http.build();
-    }
-
-
-    @Bean
-    @Profile("!test")
-    public SecurityWebFilterChain mainSecurityFilterChain(ServerHttpSecurity http) {http
                 .oauth2Login(oauth2 -> oauth2
                         .authenticationSuccessHandler(successHandler()))
                 .oauth2Client(Customizer.withDefaults())
                 .authorizeExchange(exchange -> exchange
 
                         .pathMatchers(HttpMethod.POST, "/banking/accounts/create_account").hasAnyRole("ADMIN", "CUSTOMER")
+                        .pathMatchers(HttpMethod.POST, "/banking/accounts/create_with_notification").hasAnyRole("ADMIN", "CUSTOMER")
+                        .pathMatchers(HttpMethod.POST, "/banking/accounts/transfer").hasAnyRole("ADMIN", "CUSTOMER")
+                        .pathMatchers(HttpMethod.GET, "/banking/accounts/notifications/**").hasAnyRole("ADMIN", "CUSTOMER")
                         .pathMatchers(HttpMethod.GET, "/banking/accounts/check_balance").hasAnyRole("ADMIN", "CUSTOMER")
                         .pathMatchers(HttpMethod.PUT, "/banking/accounts/update_account_details").hasAnyRole("ADMIN", "CUSTOMER")
                         .pathMatchers(HttpMethod.GET, "/banking/accounts/fetch_general_data").hasAnyRole("ADMIN", "CUSTOMER")
@@ -70,6 +71,7 @@ public class AccountSecurityConfig {
                         .pathMatchers(HttpMethod.PATCH, "/banking/accounts/verify").hasRole("ADMIN")
                         .pathMatchers(HttpMethod.GET, "/banking/accounts/filter_by_status").hasRole("ADMIN")
                         .pathMatchers(HttpMethod.GET, "/banking/accounts/sort_by").hasRole("ADMIN")
+                        .pathMatchers(HttpMethod.PATCH, "/banking/accounts/freeze_with_notification").hasRole("ADMIN")
 
 
                         .pathMatchers(HttpMethod.POST, "/banking/transactions/post").hasAnyRole("ADMIN", "CUSTOMER")
@@ -185,13 +187,13 @@ public class AccountSecurityConfig {
     }
 
     private GrantedAuthority mapIamRolesToApplicationRoles(String role) {
-        if("roles/owner".equals(role))
+        if ("roles/owner".equals(role))
             return new SimpleGrantedAuthority("ROLE_ADMIN");
 
-        if("roles/viewer".equals(role))
+        if ("roles/viewer".equals(role))
             return new SimpleGrantedAuthority("ROLE_CUSTOMER");
 
-        if("roles/editor".equals(role))
+        if ("roles/editor".equals(role))
             return new SimpleGrantedAuthority("ROLE_ADMIN");
 
         return new SimpleGrantedAuthority("ROLE_CUSTOMER");

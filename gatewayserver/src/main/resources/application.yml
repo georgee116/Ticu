@@ -1,6 +1,90 @@
 server:
   port: 8072
+
 spring:
+  application:
+    name: "gatewayserver"
+  zipkin:
+    base-url: http://localhost:9411
+  sleuth:
+    sampler:
+      probability: 1.0
+  cloud:
+    config:
+      enabled: false
+      import-check:
+        enabled: false
+    gateway:
+      routes:  # ✅ DIRECT sub gateway, NU sub server.webflux!
+        # Accounts Service
+        - id: accountmanagement
+          uri: lb://ACCOUNTMANAGEMENT
+          predicates:
+            - Path=/banking/accounts/**
+          filters:
+            - RewritePath=/banking/accounts/(?<segment>.*), /accounts/${segment}
+
+        # Transactions Service
+        - id: transactions
+          uri: lb://TRANSACTIONS
+          predicates:
+            - Path=/banking/transactions/**
+          filters:
+            - RewritePath=/banking/transactions/(?<segment>.*), /transactions/${segment}
+
+        # Notifications Service
+        - id: notification
+          uri: lb://NOTIFICATION
+          predicates:
+            - Path=/banking/notifications/**
+          filters:
+            - RewritePath=/banking/notifications/(?<segment>.*), /notifications/${segment}
+      discovery:
+        locator:
+          enabled: false
+          lower-case-service-id: true
+
+eureka:
+  instance:
+    preferIpAddress: false
+  client:
+    fetchRegistry: true
+    registerWithEureka: true
+    serviceUrl:
+      defaultZone: http://localhost:8070/eureka/
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,loggers,shutdown,gateway
+  endpoint:
+    health:
+      show-details: always
+    shutdown:
+      access: unrestricted
+
+logging:
+  level:
+    com:
+      example:
+        gatewayserver: INFO
+
+build:
+  version: ${COURSES_VERSION:local}
+
+---
+# Profil DOCKER
+spring:
+  config:
+    activate:
+      on-profile: docker
   application:
     name: "gatewayserver"
   security:
@@ -19,75 +103,44 @@ spring:
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: sub
   zipkin:
-    base-url: http://localhost:9411 #http://zipkin:9411
-  sleuth:
-    sampler:
-      probability: 1.0
-  cloud:
-    gateway:
-      server:
-        webflux:
-          discovery:
-            locator:
-              enabled: false # Tells Spring Cloud Gateway to use the DiscoveryClient to locate info about microservices
-              lower-case-service-id: true
-
-eureka:
-  instance:
-    preferIpAddress: false
-  client:
-    fetchRegistry: true
-    registerWithEureka: true
-    serviceUrl:
-      defaultZone: http://localhost:8070/eureka/  # http://eurekaserver:8070/eureka/
-
-management:
-  tracing:
-    sampling:
-      probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: http://localhost:9411/api/v2/spans #http://zipkin:9411/api/v2/spans
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,env,loggers,shutdown
-  endpoint:
-    health:
-      show-details: always
-    shutdown:
-      access: unrestricted
-
-logging:
-  level:
-    com:
-      example:
-        gatewayserver: INFO
-
-build:
-  version: ${COURSES_VERSION:local}
-
----
-spring:
-  config:
-    activate:
-      on-profile: docker
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
-            scope: openid, profile, email, https://www.googleapis.com/auth/cloud-platform
-            redirect-uri: "http://localhost:8072/login/oauth2/code/google"
-  zipkin:
     base-url: http://zipkin:9411
+
+server:
+  port: 8072
 
 eureka:
   instance:
     preferIpAddress: false
     hostname: gatewayserver
+  client:
+    fetchRegistry: true
+    registerWithEureka: true
+    serviceUrl:
+      defaultZone: http://eurekaserver:8070/eureka/
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
+
+---
+# Profil TEST
+spring:
+  config:
+    activate:
+      on-profile: test
+  application:
+    name: "gatewayserver-test"
+  zipkin:
+    base-url: http://zipkin:9411
+
+server:
+  port: 8073
+
+eureka:
+  instance:
+    preferIpAddress: false
+    hostname: gatewayserver-test
   client:
     fetchRegistry: true
     registerWithEureka: true
